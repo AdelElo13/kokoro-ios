@@ -150,18 +150,23 @@ struct KokoroConfig: Decodable {
   /// parses it as JSON, and caches the result for future use.
   ///
   /// - Returns: Parsed KokoroConfig instance
-  /// - Note: Uses forced unwrapping (try!) as configuration loading is critical
-  ///         and should fail fast if the file is missing or malformed
+  /// Loads configuration with proper error handling instead of try!
   nonisolated static func loadConfig() -> KokoroConfig {
-    // Locate config.json in the module bundle
-    let fileURL = Bundle.module.url(forResource: "config", withExtension: "json", subdirectory: "Resources")!
-    
-    // Read file contents
-    let configJSON = try! String(contentsOf: fileURL, encoding: .utf8)
-    
-    // Parse JSON and cache the result
-    KokoroConfig.config = try! JSONDecoder().decode(KokoroConfig.self, from: configJSON.data(using: .utf8)!)
-    
-    return KokoroConfig.config!
+    if let cached = KokoroConfig.config { return cached }
+
+    guard let fileURL = Bundle.module.url(forResource: "config", withExtension: "json", subdirectory: "Resources") else {
+      preconditionFailure("[KokoroConfig] config.json not found in bundle Resources — ensure the Kokoro model is properly installed")
+    }
+    do {
+      let configJSON = try String(contentsOf: fileURL, encoding: .utf8)
+      guard let jsonData = configJSON.data(using: .utf8) else {
+        preconditionFailure("[KokoroConfig] config.json could not be encoded as UTF-8")
+      }
+      let decoded = try JSONDecoder().decode(KokoroConfig.self, from: jsonData)
+      KokoroConfig.config = decoded
+      return decoded
+    } catch {
+      preconditionFailure("[KokoroConfig] Failed to parse config.json: \(error.localizedDescription)")
+    }
   }
 }
